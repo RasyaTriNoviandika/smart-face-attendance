@@ -76,18 +76,33 @@ const Index = () => {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up" style={{ animationDelay: '0.2s' }}>
             <Link to="/login">
-              <Button variant="hero" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto">
                 Mulai Absensi
                 <ChevronRight size={20} />
               </Button>
             </Link>
             <Link to="/panduan">
-              <Button variant="outline" size="lg" className="w-full sm:w-auto gap-2">
+              <Button variant="outline" size="lg" className="">
                 <BookOpen size={18} />
                 Baca Panduan
               </Button>
             </Link>
           </div>
+          <br />
+           <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link to="/login">
+            <Button variant="outline" size="lg">
+              Login
+            </Button>
+          </Link>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link to="/register">
+            <Button variant="outline" size="lg">
+              Daftar Sekarang
+            </Button>
+          </Link>
+        </div>
         </div>
       </section>
 

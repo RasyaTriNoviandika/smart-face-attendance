@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/layout/Logo';
+import { CameraScanner } from '@/components/CameraScanner';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from '@/hooks/use-toast';
 import { 
@@ -9,7 +10,6 @@ import {
   Clock, 
   CalendarDays, 
   CheckCircle2, 
-  XCircle, 
   History,
   Scan,
   User
@@ -36,8 +36,8 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanType, setScanType] = useState<'in' | 'out' | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [scanType, setScanType] = useState<'in' | 'out'>('in');
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
 
   useEffect(() => {
@@ -64,37 +64,31 @@ export default function Dashboard() {
     navigate('/');
   };
 
-  const handleScan = (type: 'in' | 'out') => {
+  const openScanner = (type: 'in' | 'out') => {
     setScanType(type);
-    setIsScanning(true);
+    setIsCameraOpen(true);
+  };
 
-    // Simulate face scanning
-    setTimeout(() => {
-      setIsScanning(false);
-      setScanType(null);
-      
-      const time = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      
-      if (type === 'in') {
-        setTodayAttendance(prev => ({
-          id: Date.now().toString(),
-          date: new Date().toISOString().split('T')[0],
-          checkIn: time,
-          status: parseInt(time.split(':')[0]) > 7 ? 'terlambat' : 'hadir',
-          ...prev,
-        }));
-        toast({
-          title: 'Absen Masuk Berhasil',
-          description: `Tercatat pada ${time}`,
-        });
-      } else {
-        setTodayAttendance(prev => prev ? { ...prev, checkOut: time } : null);
-        toast({
-          title: 'Absen Pulang Berhasil',
-          description: `Tercatat pada ${time}`,
-        });
-      }
-    }, 2500);
+  const handleScanSuccess = (time: string) => {
+    if (scanType === 'in') {
+      const hour = parseInt(time.split(':')[0]);
+      setTodayAttendance({
+        id: Date.now().toString(),
+        date: new Date().toISOString().split('T')[0],
+        checkIn: time,
+        status: hour >= 7 ? 'terlambat' : 'hadir',
+      });
+      toast({
+        title: '✅ Absen Masuk Berhasil',
+        description: `Tercatat pada pukul ${time}`,
+      });
+    } else {
+      setTodayAttendance(prev => prev ? { ...prev, checkOut: time } : null);
+      toast({
+        title: '✅ Absen Pulang Berhasil',
+        description: `Tercatat pada pukul ${time}. Sampai jumpa besok!`,
+      });
+    }
   };
 
   const getStatusBadge = (status: AttendanceRecord['status']) => {
@@ -125,6 +119,14 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Camera Scanner Modal */}
+      <CameraScanner
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        scanType={scanType}
+        onSuccess={handleScanSuccess}
+      />
+
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -181,61 +183,44 @@ export default function Dashboard() {
         <div className="bg-card rounded-2xl shadow-medium p-6 mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
           <h2 className="text-lg font-semibold text-foreground mb-4">Absensi Hari Ini</h2>
           
-          {isScanning ? (
-            <div className="text-center py-8">
-              <div className="relative w-32 h-32 mx-auto mb-4">
-                <div className="absolute inset-0 rounded-full border-4 border-primary animate-pulse-ring" />
-                <div className="absolute inset-2 rounded-full bg-secondary flex items-center justify-center">
-                  <Scan className="w-12 h-12 text-primary animate-pulse" />
-                </div>
-              </div>
-              <p className="text-foreground font-medium">Memindai Wajah...</p>
-              <p className="text-muted-foreground text-sm">
-                {scanType === 'in' ? 'Absen Masuk' : 'Absen Pulang'}
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Today's status */}
-              {todayAttendance && (
-                <div className="bg-secondary/50 rounded-xl p-4 mb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-success" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Status Hari Ini</p>
-                        <p className="font-medium text-foreground">
-                          Masuk: {todayAttendance.checkIn || '-'} • Pulang: {todayAttendance.checkOut || '-'}
-                        </p>
-                      </div>
-                    </div>
-                    {getStatusBadge(todayAttendance.status)}
+          {/* Today's status */}
+          {todayAttendance && (
+            <div className="bg-secondary/50 rounded-xl p-4 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-success" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status Hari Ini</p>
+                    <p className="font-medium text-foreground">
+                      Masuk: {todayAttendance.checkIn || '-'} • Pulang: {todayAttendance.checkOut || '-'}
+                    </p>
                   </div>
                 </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <Button
-                  variant="hero"
-                  className="h-24 flex-col gap-2"
-                  onClick={() => handleScan('in')}
-                  disabled={!!todayAttendance?.checkIn}
-                >
-                  <Scan size={28} />
-                  <span>Absen Masuk</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-24 flex-col gap-2 shadow-soft"
-                  onClick={() => handleScan('out')}
-                  disabled={!todayAttendance?.checkIn || !!todayAttendance?.checkOut}
-                >
-                  <Scan size={28} />
-                  <span>Absen Pulang</span>
-                </Button>
+                {getStatusBadge(todayAttendance.status)}
               </div>
-            </>
+            </div>
           )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <Button
+              variant="hero"
+              className="h-24 flex-col gap-2"
+              onClick={() => openScanner('in')}
+              disabled={!!todayAttendance?.checkIn}
+            >
+              <Scan size={28} />
+              <span>Absen Masuk</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-24 flex-col gap-2 shadow-soft"
+              onClick={() => openScanner('out')}
+              disabled={!todayAttendance?.checkIn || !!todayAttendance?.checkOut}
+            >
+              <Scan size={28} />
+              <span>Absen Pulang</span>
+            </Button>
+          </div>
         </div>
 
         {/* History */}

@@ -11,6 +11,7 @@ import Admin from "./pages/Admin";
 import Panduan from "./pages/Panduan";
 import NotFound from "./pages/NotFound";
 import Register from "./pages/Register";
+import Approvals from "./pages/admin/Approvals"; // 👈 TAMBAHKAN INI
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/approvals" element={<Approvals />} /> {/* 👈 TAMBAHKAN INI */}
             <Route path="/panduan" element={<Panduan />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<NotFound />} />

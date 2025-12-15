@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
-import {useEffect} from 'react';
-import { ArrowLeft, User, Mail, Lock, Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Loader2, Info, IdCard, School } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, User, Mail, Lock, Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Loader2, Info, IdCard, Phone } from 'lucide-react';
 
-// Mock data NISN yang terdaftar di sekolah (nanti dari database)
+// Mock data NISN yang terdaftar di sekolah
 const REGISTERED_NISN = [
   { nisn: '0012345678', name: 'Ahmad Rizki', class: 'XII RPL 1' },
   { nisn: '0012345679', name: 'Budi Santoso', class: 'XII RPL 1' },
@@ -27,6 +27,7 @@ interface StudentData {
 }
 
 export default function RegisterPage() {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<Step>('form');
   const [formData, setFormData] = useState<FormData>({
     nisn: '',
@@ -40,12 +41,24 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Partial<FormData>>({});
   const [isValidatingNISN, setIsValidatingNISN] = useState(false);
   const [faceImages, setFaceImages] = useState<string[]>([]);
-  const [captureCount, setCaptureCount] = useState(0);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Debounce untuk validasi NISN
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.nisn.length === 10) {
+        validateNISN(formData.nisn);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.nisn]);
+
+  // Camera management
   useEffect(() => {
     if (currentStep === 'face-capture') {
       startCamera();
@@ -56,106 +69,98 @@ export default function RegisterPage() {
     };
   }, [currentStep]);
 
-const validateNISN = async (nisn: string) => {
-  if (nisn.length !== 10) {
-    setStudentData(null);
-    return;
-  }
+  const validateNISN = async (nisn: string) => {
+    setIsValidatingNISN(true);
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const student = REGISTERED_NISN.find(s => s.nisn === nisn);
 
-  const student = REGISTERED_NISN.find(
-    s => s.nisn === nisn
-  );
-
-  if (student) {
-    setStudentData({
-      name: student.name,
-      class: student.class
-    });
-    setErrors(prev => ({ ...prev, nisn: undefined }));
-  } else {
-    setStudentData(null);
-    setErrors(prev => ({
-      ...prev,
-      nisn: 'NISN tidak terdaftar di DATA SEKOLAH'
-    }));
-  }
-};
-
-const handleInputChange = (field: keyof FormData, value: string) => {
-  if (field === 'nisn') {
-    const onlyNumber = value.replace(/\D/g, '');
-
-    setFormData(prev => ({ ...prev, nisn: onlyNumber }));
-    setErrors(prev => ({ ...prev, nisn: undefined }));
-
-    if (onlyNumber.length === 10) {
-      validateNISN(onlyNumber);
+    if (student) {
+      setStudentData({
+        name: student.name,
+        class: student.class
+      });
+      setErrors(prev => ({ ...prev, nisn: undefined }));
     } else {
       setStudentData(null);
+      setErrors(prev => ({
+        ...prev,
+        nisn: 'NISN tidak terdaftar di database sekolah'
+      }));
+    }
+    
+    setIsValidatingNISN(false);
+  };
+
+  const handleInputChange = (field: keyof FormData, value: string) => {
+    if (field === 'nisn') {
+      const onlyNumber = value.replace(/\D/g, '').slice(0, 10);
+      setFormData(prev => ({ ...prev, nisn: onlyNumber }));
+      
+      // Clear student data if length changes
+      if (onlyNumber.length !== 10) {
+        setStudentData(null);
+        setErrors(prev => ({ ...prev, nisn: undefined }));
+      }
+      return;
     }
 
-    return;
-  }
-
-  setFormData(prev => ({ ...prev, [field]: value }));
-};
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error for this field
+    setErrors(prev => ({ ...prev, [field]: undefined }));
+  };
 
   const validateForm = (): boolean => {
-  const newErrors: Partial<FormData> = {};
+    const newErrors: Partial<FormData> = {};
 
-  // NISN
-  if (!formData.nisn) {
-    newErrors.nisn = 'NISN wajib diisi';
-  } else if (formData.nisn.length !== 10) {
-    newErrors.nisn = 'NISN harus 10 digit';
-  } else if (!studentData) {
-    newErrors.nisn = 'NISN tidak terdaftar';
-  }
+    // NISN
+    if (!formData.nisn) {
+      newErrors.nisn = 'NISN wajib diisi';
+    } else if (formData.nisn.length !== 10) {
+      newErrors.nisn = 'NISN harus 10 digit';
+    } else if (!studentData) {
+      newErrors.nisn = 'NISN tidak terdaftar';
+    }
 
-  // Email
-  if (!formData.email) {
-    newErrors.email = 'Email wajib diisi';
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-    newErrors.email = 'Format email tidak valid';
-  }
+    // Email
+    if (!formData.email) {
+      newErrors.email = 'Email wajib diisi';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Format email tidak valid';
+    }
 
-  // Password
-  if (!formData.password) {
-    newErrors.password = 'Password wajib diisi';
-  } else if (formData.password.length < 6) {
-    newErrors.password = 'Password minimal 6 karakter';
-  }
+    // Password
+    if (!formData.password) {
+      newErrors.password = 'Password wajib diisi';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password minimal 6 karakter';
+    }
 
-  // Confirm password
-  if (formData.password !== formData.confirmPassword) {
-    newErrors.confirmPassword = 'Password tidak cocok';
-  }
+    // Confirm password
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Password tidak cocok';
+    }
 
-  // Phone
-  if (!formData.phone) {
-    newErrors.phone = 'Nomor HP wajib diisi';
-  } else if (!/^08\d{8,11}$/.test(formData.phone)) {
-    newErrors.phone = 'Format nomor HP tidak valid (08xxxxxxxxx)';
-  }
+    // Phone
+    if (!formData.phone) {
+      newErrors.phone = 'Nomor HP wajib diisi';
+    } else if (!/^08\d{8,11}$/.test(formData.phone)) {
+      newErrors.phone = 'Format nomor HP tidak valid (08xxxxxxxxx)';
+    }
 
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-const handleSubmitForm = async (e: React.FormEvent) => {
-  e.preventDefault();
+  const handleSubmitForm = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  if (!validateForm()) return;
+    if (!validateForm()) return;
 
-  const alreadyRegistered = false; // cek ke tabel USERS
-
-  if (alreadyRegistered) {
-    setErrors({ nisn: 'NISN sudah terdaftar, silakan login' });
-    return;
-  }
-
-  setCurrentStep('face-capture');
-};
+    setCurrentStep('face-capture');
+  };
 
   const startCamera = async () => {
     try {
@@ -166,6 +171,7 @@ const handleSubmitForm = async (e: React.FormEvent) => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+        setIsCameraReady(true);
       }
     } catch (err) {
       console.error('Camera error:', err);
@@ -178,6 +184,7 @@ const handleSubmitForm = async (e: React.FormEvent) => {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    setIsCameraReady(false);
   };
 
   const captureFrame = () => {
@@ -194,11 +201,10 @@ const handleSubmitForm = async (e: React.FormEvent) => {
     ctx.drawImage(video, 0, 0);
     
     const imageData = canvas.toDataURL('image/jpeg', 0.8);
-    setFaceImages(prev => [...prev, imageData]);
-    setCaptureCount(prev => prev + 1);
+    const newImages = [...faceImages, imageData];
+    setFaceImages(newImages);
     
-    // Ambil 3 foto berbeda (untuk face recognition yang lebih akurat)
-    if (faceImages.length + 1 >= 3) {
+    if (newImages.length >= 3) {
       stopCamera();
       setCurrentStep('processing');
       processRegistration();
@@ -206,10 +212,8 @@ const handleSubmitForm = async (e: React.FormEvent) => {
   };
 
   const processRegistration = async () => {
-    // Simulate processing (upload to server, face encoding, etc)
+    // Simulate processing
     await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Success
     setCurrentStep('success');
   };
 
@@ -224,16 +228,14 @@ const handleSubmitForm = async (e: React.FormEvent) => {
     });
     setStudentData(null);
     setFaceImages([]);
-    setCaptureCount(0);
     setErrors({});
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-black-600 rounded-2xl mb-4 shadow-xl">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-4 shadow-xl">
             <User className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -244,17 +246,14 @@ const handleSubmitForm = async (e: React.FormEvent) => {
           </p>
         </div>
 
-        {/* Main Content */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden">
           {currentStep === 'form' && (
             <div className="p-8">
-              {/* Back Button */}
-              <a href="/" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors mb-6">
+              <Link to="/" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors mb-6">
                 <ArrowLeft size={18} />
                 <span className="text-sm">Kembali</span>
-              </a>
+              </Link>
 
-              {/* Info Banner */}
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-6">
                 <div className="flex items-start gap-3">
                   <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -273,7 +272,7 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                 {/* NISN Input */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    NISN
+                    NISN <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -283,7 +282,7 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                       onChange={(e) => handleInputChange('nisn', e.target.value)}
                       placeholder="0012345678"
                       maxLength={10}
-                      className={`w-full pl-10 pr-4 py-3 rounded-lg border ${
+                      className={`w-full pl-10 pr-12 py-3 rounded-lg border ${
                         errors.nisn 
                           ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
                           : studentData
@@ -298,7 +297,7 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                       <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500" />
                     )}
                   </div>
-                  {errors.nisn && !studentData &&(
+                  {errors.nisn && (
                     <p className="text-sm text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-4 h-4" />
                       {errors.nisn}
@@ -318,10 +317,10 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                   )}
                 </div>
 
-                {/* Email Input */}
+                {/* Email */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Email
+                    Email <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -342,31 +341,34 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                   )}
                 </div>
 
-                {/* Phone Input */}
+                {/* Phone */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Nomor HP
+                    Nomor HP <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    placeholder="08123456789"
-                    className={`w-full px-4 py-3 rounded-lg border ${
-                      errors.phone 
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
-                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
-                    } focus:outline-none focus:ring-2 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-white`}
-                  />
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange('phone', e.target.value)}
+                      placeholder="08123456789"
+                      className={`w-full pl-10 pr-4 py-3 rounded-lg border ${
+                        errors.phone 
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
+                          : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+                      } focus:outline-none focus:ring-2 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-white`}
+                    />
+                  </div>
                   {errors.phone && (
                     <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errors.phone}</p>
                   )}
                 </div>
 
-                {/* Password Input */}
+                {/* Password */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Password
+                    Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -394,10 +396,10 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                   )}
                 </div>
 
-                {/* Confirm Password Input */}
+                {/* Confirm Password */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Konfirmasi Password
+                    Konfirmasi Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -418,22 +420,27 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                   )}
                 </div>
 
-                {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={!studentData}
+                  disabled={!studentData || isValidatingNISN}
                   className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-xl disabled:cursor-not-allowed disabled:shadow-none"
                 >
-                  Lanjut ke Pengambilan Foto
+                  {isValidatingNISN ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Memvalidasi NISN...
+                    </span>
+                  ) : (
+                    'Lanjut ke Pengambilan Foto'
+                  )}
                 </button>
               </form>
 
-              {/* Login Link */}
               <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
                 Sudah punya akun?{' '}
-                <a href="/login" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium">
+                <Link to="/login" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium">
                   Login di sini
-                </a>
+                </Link>
               </p>
             </div>
           )}
@@ -447,7 +454,6 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                 Ambil {3 - faceImages.length} foto lagi dari sudut berbeda
               </p>
 
-              {/* Camera Preview */}
               <div className="relative aspect-[4/3] bg-gray-900 rounded-xl overflow-hidden mb-6">
                 <video
                   ref={videoRef}
@@ -457,7 +463,6 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                   className="w-full h-full object-cover"
                 />
                 
-                {/* Face Guide */}
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                   <div className="w-48 h-60">
                     <svg viewBox="0 0 192 240" className="w-full h-full">
@@ -472,7 +477,6 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                   </div>
                 </div>
 
-                {/* Progress */}
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full">
                   <span className="text-white font-medium">
                     Foto {faceImages.length + 1} dari 3
@@ -480,7 +484,6 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                 </div>
               </div>
 
-              {/* Preview Captured Images */}
               {faceImages.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 mb-6">
                   {faceImages.map((img, i) => (
@@ -491,13 +494,13 @@ const handleSubmitForm = async (e: React.FormEvent) => {
                 </div>
               )}
 
-              {/* Capture Button */}
               <button
                 onClick={captureFrame}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                disabled={!isCameraReady}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:cursor-not-allowed"
               >
                 <Camera size={20} />
-                Ambil Foto ({faceImages.length}/3)
+                {isCameraReady ? `Ambil Foto (${faceImages.length}/3)` : 'Memuat Kamera...'}
               </button>
 
               <canvas ref={canvasRef} className="hidden" />
@@ -556,12 +559,12 @@ const handleSubmitForm = async (e: React.FormEvent) => {
               </div>
 
               <div className="space-y-3">
-                <a
-                  href="/login"
-                  className="block w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-xl"
+                <Link
+                  to="/login"
+                  className="block w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-xl text-center"
                 >
                   Ke Halaman Login
-                </a>
+                </Link>
                 <button
                   onClick={resetForm}
                   className="w-full py-3 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-semibold rounded-lg transition-all"
